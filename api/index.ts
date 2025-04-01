@@ -1,5 +1,5 @@
 import { Hono } from "hono";
-import { setCookie } from "hono/cookie";
+import { setCookie, getCookie } from "hono/cookie";
 import { handle } from "hono/vercel";
 import { SignJWT } from "jose";
 
@@ -28,21 +28,33 @@ function randomInt(max: number) {
 }
 
 app.get("/login", async (c) => {
+  const userID = userIDs[randomInt(userIDs.length)];
+
+  setCookie(c, "sessionUserID", userID, {
+    expires: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000),
+  });
+
+  return c.json({ userID: userID });
+});
+
+app.get("/token", async (c) => {
+  const userID = getCookie(c, "sessionUserID");
+
+  if (!userID) {
+    return c.json({ error: "No session user ID" }, 401);
+  }
+
   const jwtPayload = {
-    sub: userIDs[randomInt(userIDs.length)],
+    sub: userID,
     iat: Math.floor(Date.now() / 1000),
   };
 
   const jwt = await new SignJWT(jwtPayload)
     .setProtectedHeader({ alg: "HS256" })
-    .setExpirationTime("30days")
+    .setExpirationTime("1m")
     .sign(new TextEncoder().encode(must(process.env.ZERO_AUTH_SECRET)));
 
-  setCookie(c, "jwt", jwt, {
-    expires: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000),
-  });
-
-  return c.text("ok");
+  return c.json({ jwt: jwt });
 });
 
 export default handle(app);

@@ -1,12 +1,13 @@
-import { useState, MouseEvent, useRef } from "react";
+import { useMemo, useState, MouseEvent, useRef } from "react";
 import Cookies from "js-cookie";
-import { useQuery, useZero } from "@rocicorp/zero/react";
-import { escapeLike } from "@rocicorp/zero";
+import { useQuery, useZero, ZeroProvider } from "@rocicorp/zero/react";
+import { escapeLike, Zero } from "@rocicorp/zero";
 import { Schema } from "./schema";
 import { randomMessage } from "./test-data";
 import { randInt } from "./rand";
 import { useInterval } from "./use-interval";
 import { formatDate } from "./date";
+import { schema } from "./schema.ts";
 
 function App() {
   const z = useZero<Schema>();
@@ -127,15 +128,6 @@ function App() {
     });
   };
 
-  const toggleLogin = async () => {
-    if (z.userID === "anon") {
-      await fetch("/api/login");
-    } else {
-      Cookies.remove("jwt");
-    }
-    location.reload();
-  };
-
   // If initial sync hasn't completed, these can be empty.
   if (!users.length || !mediums.length) {
     return null;
@@ -173,9 +165,6 @@ function App() {
           }}
         >
           {user === "anon" ? "" : `Logged in as ${user}`}
-          <button onMouseDown={() => toggleLogin()}>
-            {user === "anon" ? "Login" : "Logout"}
-          </button>
         </div>
       </div>
       <div className="controls">
@@ -259,4 +248,52 @@ function App() {
   );
 }
 
-export default App;
+function AppWithZero({ userID }: { userID: string }) {
+  const zero = useMemo(
+    () =>
+      new Zero({
+        userID,
+        server: import.meta.env.VITE_PUBLIC_SERVER,
+        schema,
+        kvStore: "mem",
+        auth: async () => {
+          const res = await fetch("/api/token");
+          const data = await res.json();
+          return data.jwt;
+        },
+      }),
+    [userID]
+  );
+
+  return (
+    <ZeroProvider zero={zero}>
+      <App />
+    </ZeroProvider>
+  );
+}
+
+function AppWithAuth() {
+  const [userID, setUserID] = useState<string>("");
+
+  const toggleLogin = async () => {
+    if (!userID) {
+      const res = await fetch("/api/login");
+      const data = await res.json();
+      setUserID(data.userID);
+    } else {
+      Cookies.remove("sessionUserID");
+      setUserID("");
+    }
+  };
+
+  return (
+    <div>
+      <button onMouseDown={() => toggleLogin()}>
+        {userID ? "Logout" : "Login"}
+      </button>
+      {userID && <AppWithZero userID={userID} />}
+    </div>
+  );
+}
+
+export default AppWithAuth;
