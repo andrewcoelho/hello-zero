@@ -3,13 +3,14 @@ import Cookies from "js-cookie";
 import { useQuery, useZero } from "@rocicorp/zero/react";
 import { escapeLike } from "@rocicorp/zero";
 import { schema, Schema } from "./schema";
+import { Mutators } from "./mutators";
 import { randomMessage } from "./test-data";
 import { randInt } from "./rand";
 import { useInterval } from "./use-interval";
 import { formatDate } from "./date";
 
 function App() {
-  const z = useZero<Schema>();
+  const z = useZero<Schema, Mutators>();
   const [users] = useQuery(z.query.user, {
     ttl: "forever",
   });
@@ -40,6 +41,7 @@ function App() {
   }
 
   const [filteredMessages] = useQuery(filtered);
+  console.log(filteredMessages.length);
 
   const hasFilters = filterUser || filterText;
   const [action, setAction] = useState<"add" | "remove" | undefined>(undefined);
@@ -55,8 +57,9 @@ function App() {
     return true;
   };
 
-  const addRandomMessage = () => {
-    z.mutate.message.insert(randomMessage(users, mediums));
+  const addRandomMessage = async () => {
+    const server = await z.mutate.message.insert(randomMessage(users, mediums)).server;
+    console.log('server', server);
     return true;
   };
 

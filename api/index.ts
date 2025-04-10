@@ -2,12 +2,30 @@ import { Hono } from "hono";
 import { setCookie } from "hono/cookie";
 import { handle } from "hono/vercel";
 import { SignJWT } from "jose";
+import {connectionProvider, PushProcessor} from "@rocicorp/zero/pg";
+import postgres from "postgres";
+import {schema} from "../src/schema.ts";
+import {createMutators} from "../src/mutators.ts";
 
 export const config = {
   runtime: "edge",
 };
 
+const processor = new PushProcessor(
+  schema,
+  connectionProvider(postgres(process.env.ZERO_UPSTREAM_DB as string)),
+);
+
 export const app = new Hono().basePath("/api");
+
+app.post('/push', async c => {
+  const result = await processor.process(
+    createMutators(),
+    c.req.query(),
+    await c.req.json(),
+  );
+  return c.json(result);
+});
 
 // See seed.sql
 // In real life you would of course authenticate the user however you like.
